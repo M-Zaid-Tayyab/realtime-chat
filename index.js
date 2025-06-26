@@ -4,11 +4,17 @@ const cors = require('cors');
 const bodyParser = require('body-parser');
 const { Server } = require('socket.io');
 
+
 const app = express();
 const server = http.createServer(app);
 
 app.use(cors());
 app.use(bodyParser.json());
+
+require('dotenv').config();
+const jwt = require('jsonwebtoken');
+
+const JWT_SECRET = process.env.NODE_JWT_SECRET;
 
 const io = new Server(server, {
   cors: {
@@ -42,8 +48,17 @@ io.on('connection', (socket) => {
 
 // Laravel POSTs to this endpoint to trigger real-time messages
 app.post('/socket-message', (req, res) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+  try {
+    jwt.verify(token, JWT_SECRET);
+  } catch (err) {
+    return res.status(401).json({ status: 'error', message: 'Unauthorized' });
+  }
+
   const { sender_id, receiver_id, message, id, created_at } = req.body;
 
+  console.log('token:',token);
   if (!receiver_id || !message) {
     return res.status(400).json({ status: 'error', message: 'Missing data' });
   }
