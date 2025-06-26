@@ -56,7 +56,7 @@ app.post('/socket-message', (req, res) => {
     return res.status(401).json({ status: 'error', message: 'Unauthorized' });
   }
 
-  const { sender_id, receiver_id, message, id, created_at } = req.body;
+  const { id, sender_id, receiver_id, message,attachments, created_at } = req.body;
 
   console.log('token:',token);
   if (!receiver_id || !message) {
@@ -68,6 +68,7 @@ app.post('/socket-message', (req, res) => {
     sender_id,
     receiver_id,
     message,
+    attachments,
     created_at,
   };
 

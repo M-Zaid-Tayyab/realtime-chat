@@ -7,6 +7,7 @@ const socket = io('http://localhost:3001'); // Node server
 const Sender = () => {
     const [messages, setMessages] = useState([]);
     const [text, setText] = useState('');
+    const [images, setImages] = useState([]);
 
     const currentUser = 9;
     const receiverId = 156
@@ -32,19 +33,40 @@ const Sender = () => {
     }, [receiverId, token]);
 
 
-    useEffect(() => {
-        const handleNewMessage = (msg) => {
-            console.log('Socket received:', msg);
-            setMessages((prev) => [...prev, msg]);
+useEffect(() => {
+    const handleNewMessage = (msg) => {
+        let attachments = [];
+
+        // Fix attachment parsing if it's a string
+        if (typeof msg.attachments === 'string') {
+            try {
+                attachments = JSON.parse(msg.attachments);
+            } catch (err) {
+                console.warn('Attachment JSON parse failed', err);
+            }
+        } else if (Array.isArray(msg.attachments)) {
+            attachments = msg.attachments;
+        }
+
+        const cleanMsg = {
+            ...msg,
+            attachments,
         };
 
-        socket.on('receive_message', handleNewMessage);
+        setMessages((prev) => [...prev, cleanMsg]);
+    };
 
-        return () => {
-            socket.off('receive_message', handleNewMessage);
-        };
-    }, []);
+    socket.on('receive_message', handleNewMessage);
 
+    return () => {
+        socket.off('receive_message', handleNewMessage);
+    };
+}, []);
+
+
+  const handleImageChange = (e) => {
+        setImages([...e.target.files]);
+  };
    
     const sendMessage = async () => {
         const msg = {
@@ -58,14 +80,19 @@ const Sender = () => {
             formData.append(key, msg[key]);
         }
 
+        images.forEach((file, index) => {
+            formData.append('attachments[]', file);
+        });
         await axios.post('http://localhost:8000/api/messages/send', formData, {
             headers: {
                 Authorization: `Bearer ${token}`,
                 Accept: 'application/json',
+                    'Content-Type': 'multipart/form-data',
             },
         });
 
         setMessages((prev) => [...prev, msg]);
+        setImages([]);
         setText('');
     };
 
@@ -81,21 +108,40 @@ const Sender = () => {
                             textAlign: msg.sender_id === currentUser ? 'right' : 'left',
                         }}
                     >
-                        <div style={{ display: 'inline-block', background: '#f0f0f0', padding: '8px 12px', borderRadius: 12 }}>
+                          <div style={{ display: 'inline-block', background: '#f0f0f0', padding: '8px 12px', borderRadius: 12 }}>
                             {msg.message}
+                            {msg.attachments &&
+                                msg.attachments.map((img, i) => (
+                                    <div key={i}>
+                                    <img
+                                        src={`http://localhost:8000/${img}`}
+                                        alt="attachment"
+                                        style={{ maxWidth: 200, marginTop: 5 }}
+                                    />
+                                    </div>
+                            ))}
                         </div>
                     </div>
                 ))}
             </div>
 
-            <div style={{ marginTop: 10 }}>
+          <div style={{ marginTop: 10 }}>
                 <input
                     type="text"
                     value={text}
                     onChange={(e) => setText(e.target.value)}
                     placeholder="Type message..."
-                    style={{ width: '70%', padding: 8 }}
+                    style={{ width: '60%', padding: 8 }}
                 />
+
+                <input
+                    type="file"
+                    multiple
+                    accept="image/*"
+                    onChange={handleImageChange}
+                    style={{ marginLeft: 8 }}
+                />
+
                 <button onClick={sendMessage} style={{ padding: 8, marginLeft: 8 }}>
                     Send
                 </button>

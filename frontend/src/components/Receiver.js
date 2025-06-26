@@ -7,6 +7,7 @@ const socket = io('http://localhost:3001'); // Node server
 const Receiver = () => {
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState('');
+  const [images, setImages] = useState([]);
 
   const currentUser = 156;
   const receiverId = 9;
@@ -46,6 +47,10 @@ const Receiver = () => {
   }, []);
 
 
+  const handleImageChange = (e) => {
+        setImages([...e.target.files]);
+  };
+
   const sendMessage = async () => {
     const msg = {
       sender_id: currentUser,
@@ -58,14 +63,21 @@ const Receiver = () => {
       formData.append(key, msg[key]);
     }
 
+    images.forEach((file, index) => {
+            formData.append('attachments[]', file);
+    });
+
+
     await axios.post('http://localhost:8000/api/messages/send', formData, {
       headers: {
         Authorization: `Bearer ${token}`,
         Accept: 'application/json',
+        'Content-Type': 'multipart/form-data',
       },
     });
 
     setMessages((prev) => [...prev, msg]);
+    setImages([]);
     setText('');
   };
 
@@ -81,25 +93,40 @@ const Receiver = () => {
               textAlign: msg.sender_id === currentUser ? 'right' : 'left',
             }}
           >
-            <div style={{ display: 'inline-block', background: '#f0f0f0', padding: '8px 12px', borderRadius: 12 }}>
-              {msg.message}
-            </div>
+              <div style={{ display: 'inline-block', background: '#f0f0f0', padding: '8px 12px', borderRadius: 12 }}>
+                            {msg.message}
+                            {msg.attachments &&
+                                msg.attachments.map((img, i) => (
+                                    <div key={i}>
+                                        <img src={`http://localhost:8000/${img}`}  alt="attachment" style={{ maxWidth: 200, marginTop: 5 }} />
+                                    </div>
+                                ))}
+                        </div>
           </div>
         ))}
       </div>
 
-      <div style={{ marginTop: 10 }}>
-        <input
-          type="text"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder="Type message..."
-          style={{ width: '70%', padding: 8 }}
-        />
-        <button onClick={sendMessage} style={{ padding: 8, marginLeft: 8 }}>
-          Send
-        </button>
-      </div>
+    <div style={{ marginTop: 10 }}>
+                <input
+                    type="text"
+                    value={text}
+                    onChange={(e) => setText(e.target.value)}
+                    placeholder="Type message..."
+                    style={{ width: '60%', padding: 8 }}
+                />
+
+                <input
+                    type="file"
+                    multiple
+                    accept="image/*"
+                    onChange={handleImageChange}
+                    style={{ marginLeft: 8 }}
+                />
+
+                <button onClick={sendMessage} style={{ padding: 8, marginLeft: 8 }}>
+                    Send
+                </button>
+            </div>
     </div>
   );
 };
