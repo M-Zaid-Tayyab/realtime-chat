@@ -13,11 +13,26 @@ const Receiver = () => {
   const receiverId = 9;
   const token = '20|wdzF6pzVa2cQZrHypPmall7UPpHwXsq3MfLKzkZu58faeb0e';  // currentUser token 
 
+  // Join socket and log connection
   useEffect(() => {
     socket.emit('join', { userId: currentUser });
+
+    socket.on('connect', () => {
+      console.log('Socket connected:', socket.id);
+    });
+
+    socket.on('disconnect', () => {
+      console.log('Socket disconnected');
+    });
+
+    return () => {
+      socket.off('connect');
+      socket.off('disconnect');
+    };
   }, [currentUser]);
 
 
+  // Load initial history
   useEffect(() => {
     const loadMessages = async () => {
       const res = await axios.get(`http://localhost:8000/api/messages/history?user_id=${receiverId}`, {
@@ -33,10 +48,29 @@ const Receiver = () => {
   }, [receiverId, token]);
 
 
+  // Listen for new incoming messages
   useEffect(() => {
     const handleNewMessage = (msg) => {
-      console.log('Socket received:', msg);
-      setMessages((prev) => [...prev, msg]);
+      let attachments = [];
+
+      // Fix attachment parsing if it's a string
+      if (typeof msg.attachments === 'string') {
+        try {
+          attachments = JSON.parse(msg.attachments);
+        } catch (err) {
+          console.warn('Attachment JSON parse failed', err);
+        }
+      } else if (Array.isArray(msg.attachments)) {
+        attachments = msg.attachments;
+      }
+
+      console.log('attachments:',attachments)
+      const cleanMsg = {
+        ...msg,
+        attachments,
+      };
+
+      setMessages((prev) => [...prev, cleanMsg]);
     };
 
     socket.on('receive_message', handleNewMessage);
@@ -48,7 +82,7 @@ const Receiver = () => {
 
 
   const handleImageChange = (e) => {
-        setImages([...e.target.files]);
+     setImages(Array.from(e.target.files)); 
   };
 
   const sendMessage = async () => {
@@ -64,7 +98,7 @@ const Receiver = () => {
     }
 
     images.forEach((file, index) => {
-            formData.append('attachments[]', file);
+      formData.append('attachments[]', file);
     });
 
 
@@ -76,7 +110,7 @@ const Receiver = () => {
       },
     });
 
-    setMessages((prev) => [...prev, msg]);
+    
     setImages([]);
     setText('');
   };
@@ -93,40 +127,44 @@ const Receiver = () => {
               textAlign: msg.sender_id === currentUser ? 'right' : 'left',
             }}
           >
-              <div style={{ display: 'inline-block', background: '#f0f0f0', padding: '8px 12px', borderRadius: 12 }}>
-                            {msg.message}
-                            {msg.attachments &&
-                                msg.attachments.map((img, i) => (
-                                    <div key={i}>
-                                        <img src={`http://localhost:8000/${img}`}  alt="attachment" style={{ maxWidth: 200, marginTop: 5 }} />
-                                    </div>
-                                ))}
-                        </div>
+            <div style={{ display: 'inline-block', background: '#f0f0f0', padding: '8px 12px', borderRadius: 12 }}>
+              {msg.message}
+              {msg.attachments &&
+                msg.attachments.map((img, i) => (
+                  <div key={i}>
+                    <img
+                      src={`http://localhost:8000/${img}`}
+                      alt="attachment"
+                      style={{ maxWidth: 200, marginTop: 5 }}
+                    />
+                  </div>
+                ))}
+            </div>
           </div>
         ))}
       </div>
 
-    <div style={{ marginTop: 10 }}>
-                <input
-                    type="text"
-                    value={text}
-                    onChange={(e) => setText(e.target.value)}
-                    placeholder="Type message..."
-                    style={{ width: '60%', padding: 8 }}
-                />
+      <div style={{ marginTop: 10 }}>
+        <input
+          type="text"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="Type message..."
+          style={{ width: '60%', padding: 8 }}
+        />
 
-                <input
-                    type="file"
-                    multiple
-                    accept="image/*"
-                    onChange={handleImageChange}
-                    style={{ marginLeft: 8 }}
-                />
+        <input
+          type="file"
+          multiple
+          accept="image/*"
+          onChange={handleImageChange}
+          style={{ marginLeft: 8 }}
+        />
 
-                <button onClick={sendMessage} style={{ padding: 8, marginLeft: 8 }}>
-                    Send
-                </button>
-            </div>
+        <button onClick={sendMessage} style={{ padding: 8, marginLeft: 8 }}>
+          Send
+        </button>
+      </div>
     </div>
   );
 };

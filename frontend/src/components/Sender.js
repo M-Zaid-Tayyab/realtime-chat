@@ -13,11 +13,26 @@ const Sender = () => {
     const receiverId = 156
     const token = '8|94ZKTv7qxLPYlWqCDuZtJPGgZO3taPvlBErxBie87efbd45f'; // currentUser token 
 
+    // Join socket and log connection
     useEffect(() => {
         socket.emit('join', { userId: currentUser });
+
+        socket.on('connect', () => {
+            console.log('Socket connected:', socket.id);
+        });
+
+        socket.on('disconnect', () => {
+            console.log('Socket disconnected');
+        });
+
+        return () => {
+            socket.off('connect');
+            socket.off('disconnect');
+        };
     }, [currentUser]);
 
 
+    // Load initial history
     useEffect(() => {
         const loadMessages = async () => {
             const res = await axios.get(`http://localhost:8000/api/messages/history?user_id=${receiverId}`, {
@@ -33,41 +48,43 @@ const Sender = () => {
     }, [receiverId, token]);
 
 
-useEffect(() => {
-    const handleNewMessage = (msg) => {
-        let attachments = [];
+    // Listen for new incoming messages
+    useEffect(() => {
+        const handleNewMessage = (msg) => {
+            let attachments = [];
 
-        // Fix attachment parsing if it's a string
-        if (typeof msg.attachments === 'string') {
-            try {
-                attachments = JSON.parse(msg.attachments);
-            } catch (err) {
-                console.warn('Attachment JSON parse failed', err);
+            // Fix attachment parsing if it's a string
+            if (typeof msg.attachments === 'string') {
+                try {
+                    attachments = JSON.parse(msg.attachments);
+                } catch (err) {
+                    console.warn('Attachment JSON parse failed', err);
+                }
+            } else if (Array.isArray(msg.attachments)) {
+                attachments = msg.attachments;
             }
-        } else if (Array.isArray(msg.attachments)) {
-            attachments = msg.attachments;
-        }
 
-        const cleanMsg = {
-            ...msg,
-            attachments,
+            console.log('attachments1 msg:',msg)
+            const cleanMsg = {
+                ...msg,
+                attachments,
+            };
+
+            setMessages((prev) => [...prev, cleanMsg]);
         };
 
-        setMessages((prev) => [...prev, cleanMsg]);
+        socket.on('receive_message', handleNewMessage);
+
+        return () => {
+            socket.off('receive_message', handleNewMessage);
+        };
+    }, []);
+
+
+    const handleImageChange = (e) => {
+         setImages(Array.from(e.target.files));
     };
 
-    socket.on('receive_message', handleNewMessage);
-
-    return () => {
-        socket.off('receive_message', handleNewMessage);
-    };
-}, []);
-
-
-  const handleImageChange = (e) => {
-        setImages([...e.target.files]);
-  };
-   
     const sendMessage = async () => {
         const msg = {
             sender_id: currentUser,
@@ -87,11 +104,11 @@ useEffect(() => {
             headers: {
                 Authorization: `Bearer ${token}`,
                 Accept: 'application/json',
-                    'Content-Type': 'multipart/form-data',
+                'Content-Type': 'multipart/form-data',
             },
         });
 
-        setMessages((prev) => [...prev, msg]);
+   
         setImages([]);
         setText('');
     };
@@ -108,24 +125,24 @@ useEffect(() => {
                             textAlign: msg.sender_id === currentUser ? 'right' : 'left',
                         }}
                     >
-                          <div style={{ display: 'inline-block', background: '#f0f0f0', padding: '8px 12px', borderRadius: 12 }}>
+                        <div style={{ display: 'inline-block', background: '#f0f0f0', padding: '8px 12px', borderRadius: 12 }}>
                             {msg.message}
                             {msg.attachments &&
                                 msg.attachments.map((img, i) => (
                                     <div key={i}>
-                                    <img
-                                        src={`http://localhost:8000/${img}`}
-                                        alt="attachment"
-                                        style={{ maxWidth: 200, marginTop: 5 }}
-                                    />
+                                        <img
+                                            src={`http://localhost:8000/${img}`}
+                                            alt="attachment"
+                                            style={{ maxWidth: 200, marginTop: 5 }}
+                                        />
                                     </div>
-                            ))}
+                                ))}
                         </div>
                     </div>
                 ))}
             </div>
 
-          <div style={{ marginTop: 10 }}>
+            <div style={{ marginTop: 10 }}>
                 <input
                     type="text"
                     value={text}

@@ -58,7 +58,7 @@ app.post('/socket-message', (req, res) => {
 
   const { id, sender_id, receiver_id, message,attachments, created_at } = req.body;
 
-  console.log('token:',token);
+  // console.log('token:',token);
   if (!receiver_id || !message) {
     return res.status(400).json({ status: 'error', message: 'Missing data' });
   }
@@ -76,6 +76,8 @@ app.post('/socket-message', (req, res) => {
 
   // Emit to the specific user's room
   io.to(receiver_id.toString()).emit('receive_message', payload);
+  io.to(sender_id.toString()).emit('receive_message', payload);
+  
 
   return res.json({ status: 'ok', delivered_to: receiver_id });
 });
