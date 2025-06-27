@@ -4,15 +4,17 @@ const cors = require('cors');
 const bodyParser = require('body-parser');
 const { Server } = require('socket.io');
 
+require('dotenv').config();
+const jwt = require('jsonwebtoken');
 
 const app = express();
 const server = http.createServer(app);
 
-app.use(cors());
+app.use(cors({
+  origin: '*',
+  credentials: true
+}));
 app.use(bodyParser.json());
-
-require('dotenv').config();
-const jwt = require('jsonwebtoken');
 
 const JWT_SECRET = process.env.NODE_JWT_SECRET;
 
@@ -20,10 +22,10 @@ const io = new Server(server, {
   cors: {
     origin: '*',
     methods: ['GET', 'POST'],
+    credentials: true
   },
 });
 
-// Track connected users (optional for typing/online status)
 const connectedUsers = new Map();
 
 io.on('connection', (socket) => {
@@ -46,7 +48,6 @@ io.on('connection', (socket) => {
   });
 });
 
-// Laravel POSTs to this endpoint to trigger real-time messages
 app.post('/socket-message', (req, res) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
@@ -57,8 +58,6 @@ app.post('/socket-message', (req, res) => {
   }
 
   const { id, sender_id, receiver_id, message,attachments, created_at } = req.body;
-
-  // console.log('token:',token);
   if (!receiver_id || !message) {
     return res.status(400).json({ status: 'error', message: 'Missing data' });
   }
@@ -71,10 +70,6 @@ app.post('/socket-message', (req, res) => {
     attachments,
     created_at,
   };
-
-  console.log('📨 New message from Laravel:', payload);
-
-  // Emit to the specific user's room
   io.to(receiver_id.toString()).emit('receive_message', payload);
   io.to(sender_id.toString()).emit('receive_message', payload);
   
@@ -82,6 +77,9 @@ app.post('/socket-message', (req, res) => {
   return res.json({ status: 'ok', delivered_to: receiver_id });
 });
 
-server.listen(3001, () => {
-  console.log('✅ Socket.IO server running at http://localhost:3001');
+const PORT = process.env.PORT || 3001;
+
+server.listen(PORT, () => {
+  console.log(`✅ Socket.IO server running on port ${PORT}`);
+  console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
 });
