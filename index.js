@@ -71,7 +71,6 @@ app.post('/socket-message', (req, res) => {
     created_at,
   };
   io.to(receiver_id.toString()).emit('receive_message', payload);
-  io.to(sender_id.toString()).emit('receive_message', payload);
   
 
   return res.json({ status: 'ok', delivered_to: receiver_id });
