@@ -37,6 +37,11 @@ io.on('connection', (socket) => {
     console.log(`👤 User ${userId} joined room user_${userId}`);
   });
 
+  socket.on('join_group', ({ groupId }) => {
+    socket.join(`group_${groupId}`);
+    console.log(`👥 User ${socket.id} joined group_${groupId}`);
+  });
+
   socket.on('disconnect', () => {
     console.log('🔴 User disconnected:', socket.id);
     for (const [userId, socketId] of connectedUsers.entries()) {
@@ -57,23 +62,43 @@ app.post('/socket-message', (req, res) => {
     return res.status(401).json({ status: 'error', message: 'Unauthorized' });
   }
 
-  const { id, sender_id, receiver_id, message,attachments, created_at } = req.body;
-  if (!receiver_id || !message) {
-    return res.status(400).json({ status: 'error', message: 'Missing data' });
-  }
-
-  const payload = {
-    id,
-    sender_id,
-    receiver_id,
-    message,
-    attachments,
-    created_at,
-  };
-  io.to(receiver_id.toString()).emit('receive_message', payload);
+  const { id, sender_id, receiver_id, group_id, message, attachments, created_at } = req.body;
   
+  if (group_id) {
+    if (!group_id || !message) {
+      return res.status(400).json({ status: 'error', message: 'Missing group_id or message' });
+    }
 
-  return res.json({ status: 'ok', delivered_to: receiver_id });
+    const payload = {
+      id,
+      sender_id,
+      group_id,
+      message,
+      attachments,
+      created_at,
+      isGroup: true
+    };
+    
+    io.to(`group_${group_id}`).emit('receive_message', payload);
+    return res.json({ status: 'ok', delivered_to: `group_${group_id}` });
+  } else {
+    if (!receiver_id || !message) {
+      return res.status(400).json({ status: 'error', message: 'Missing receiver_id or message' });
+    }
+
+    const payload = {
+      id,
+      sender_id,
+      receiver_id,
+      message,
+      attachments,
+      created_at,
+      isGroup: false
+    };
+    
+    io.to(receiver_id.toString()).emit('receive_message', payload);
+    return res.json({ status: 'ok', delivered_to: receiver_id });
+  }
 });
 
 const PORT = process.env.PORT || 3001;
