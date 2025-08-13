@@ -69,9 +69,14 @@ app.post('/socket-message', (req, res) => {
       return res.status(400).json({ status: 'error', message: 'Missing group_id or message' });
     }
 
+    const sender_name = req.body.sender_name;
+    const sender_profile_image = req.body.sender_profile_image;
+
     const payload = {
       id,
       sender_id,
+      sender_name,
+      sender_profile_image,
       group_id,
       message,
       attachments,
