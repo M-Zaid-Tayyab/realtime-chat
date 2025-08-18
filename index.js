@@ -42,6 +42,11 @@ io.on('connection', (socket) => {
     console.log(`👥 User ${socket.id} joined group_${groupId}`);
   });
 
+  socket.on("join_stream", ({ streamId }) => {
+    socket.join(`stream_${streamId}`);
+    console.log(`👥 User ${socket.id} joined stream_${streamId}`);
+  });
+
   socket.on('disconnect', () => {
     console.log('🔴 User disconnected:', socket.id);
     for (const [userId, socketId] of connectedUsers.entries()) {
@@ -62,7 +67,7 @@ app.post('/socket-message', (req, res) => {
     return res.status(401).json({ status: 'error', message: 'Unauthorized' });
   }
 
-  const { id, sender_id, receiver_id, group_id, message, attachments, created_at } = req.body;
+  const { id, sender_id, receiver_id, group_id, message, attachments, created_at, stream_id } = req.body;
   
   if (group_id) {
     if (!group_id || !message) {
@@ -86,6 +91,30 @@ app.post('/socket-message', (req, res) => {
     
     io.to(`group_${group_id}`).emit('receive_message', payload);
     return res.json({ status: 'ok', delivered_to: `group_${group_id}` });
+  } else if (stream_id) {
+    if (!stream_id || !message) {
+      return res.status(400).json({ status: 'error', message: 'Missing stream_id or message' });
+    }
+
+    const sender_name = req.body.sender_name;
+    const sender_profile_image = req.body.sender_profile_image;
+    const stream_id = req.body.stream_id;
+
+    const payload = {
+      id,
+      stream_id,
+      sender_id,
+      sender_name,
+      sender_profile_image,
+      receiver_id,
+      message,
+      attachments,
+      created_at,
+      isStream: true
+    };
+    
+    io.to(`stream_${stream_id}`).emit('receive_message', payload);
+    return res.json({ status: 'ok', delivered_to: `stream_${stream_id}` });
   } else {
     if (!receiver_id || !message) {
       return res.status(400).json({ status: 'error', message: 'Missing receiver_id or message' });
@@ -98,7 +127,6 @@ app.post('/socket-message', (req, res) => {
       message,
       attachments,
       created_at,
-      isGroup: false
     };
     
     io.to(receiver_id.toString()).emit('receive_message', payload);
