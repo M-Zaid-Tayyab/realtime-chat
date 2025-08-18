@@ -67,8 +67,6 @@ app.post('/socket-message', (req, res) => {
     return res.status(401).json({ status: 'error', message: 'Unauthorized' });
   }
 
-  console.log("Req body: ",req.body);
-
   const { id, sender_id, receiver_id, group_id, message, attachments, created_at, stream_id } = req.body;
   
   if (group_id) {
@@ -115,6 +113,7 @@ app.post('/socket-message', (req, res) => {
     };
     
     io.to(`stream_${stream_id}`).emit('receive_message', payload);
+    console.log(`👥 User ${socket.id} delivered message ${message} to stream_${stream_id}`);
     return res.json({ status: 'ok', delivered_to: `stream_${stream_id}` });
   } else {
     if (!receiver_id || !message) {
