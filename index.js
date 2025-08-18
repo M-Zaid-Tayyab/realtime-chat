@@ -113,7 +113,6 @@ app.post('/socket-message', (req, res) => {
     };
     
     io.to(`stream_${stream_id}`).emit('receive_message', payload);
-    console.log(`👥 User ${socket.id} delivered message ${message} to stream_${stream_id}`);
     return res.json({ status: 'ok', delivered_to: `stream_${stream_id}` });
   } else {
     if (!receiver_id || !message) {
