@@ -67,6 +67,8 @@ app.post('/socket-message', (req, res) => {
     return res.status(401).json({ status: 'error', message: 'Unauthorized' });
   }
 
+  console.log("Req body: ",req.body);
+
   const { id, sender_id, receiver_id, group_id, message, attachments, created_at, stream_id } = req.body;
   
   if (group_id) {
