@@ -100,7 +100,6 @@ app.post('/socket-message', (req, res) => {
 
     const sender_name = req.body.sender_name;
     const sender_profile_image = req.body.sender_profile_image;
-    const stream_id = req.body.stream_id;
 
     const payload = {
       id,
