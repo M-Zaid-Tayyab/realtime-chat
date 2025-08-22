@@ -27,6 +27,7 @@ const io = new Server(server, {
 });
 
 const connectedUsers = new Map();
+const activeStreams = new Map();
 
 io.on('connection', (socket) => {
   console.log('🟢 Socket connected:', socket.id);
@@ -44,11 +45,82 @@ io.on('connection', (socket) => {
 
   socket.on("join_stream", ({ streamId }) => {
     socket.join(`stream_${streamId}`);
-    console.log(`👥 User ${socket.id} joined stream_${streamId}`);
+    
+    if (!activeStreams.has(streamId)) {
+      activeStreams.set(streamId, {
+        participants: new Set(),
+        viewerCount: 0
+      });
+    }
+
+    const streamData = activeStreams.get(streamId);
+    streamData.participants.add(socket.id);
+    streamData.viewerCount = streamData.participants.size;
+
+    socket.streamId = streamId;
+
+    socket.to(`stream_${streamId}`).emit('viewer_joined', {
+      viewerCount: streamData.viewerCount
+    });
+
+    console.log(` User joined stream_${streamId}. Viewers: ${streamData.viewerCount}`);
+  });
+
+  socket.on('send_gift', (data) => {
+    const { streamId } = data;
+    if (streamId) {
+      io.to(`stream_${streamId}`).emit('gift_sent');
+      console.log(`🎁 Gift sent in stream ${streamId}`);
+    }
+  });
+
+  socket.on('send_super_like', (data) => {
+    const { streamId } = data;
+    if (streamId) {
+      io.to(`stream_${streamId}`).emit('super_like_sent');
+      console.log(` Super like sent in stream ${streamId}`);
+    }
+  });
+
+  socket.on('leave_stream', (data) => {
+    const { streamId } = data;
+    if (!streamId) return;
+
+    const streamData = activeStreams.get(streamId);
+    if (streamData) {
+      streamData.participants.delete(socket.id);
+      streamData.viewerCount = streamData.participants.size;
+
+      if (streamData.participants.size === 0) {
+        activeStreams.delete(streamId);
+      } else {
+        socket.to(`stream_${streamId}`).emit('viewer_left', {
+          viewerCount: streamData.viewerCount
+        });
+      }
+    }
+
+    socket.leave(`stream_${streamId}`);
+    delete socket.streamId;
   });
 
   socket.on('disconnect', () => {
-    console.log('🔴 User disconnected:', socket.id);
+    if (socket.streamId) {
+      const streamData = activeStreams.get(socket.streamId);
+      if (streamData) {
+        streamData.participants.delete(socket.id);
+        streamData.viewerCount = streamData.participants.size;
+
+        if (streamData.participants.size === 0) {
+          activeStreams.delete(socket.streamId);
+        } else {
+          socket.to(`stream_${socket.streamId}`).emit('viewer_left', {
+            viewerCount: streamData.viewerCount
+          });
+        }
+      }
+    }
+
     for (const [userId, socketId] of connectedUsers.entries()) {
       if (socketId === socket.id) {
         connectedUsers.delete(userId);
