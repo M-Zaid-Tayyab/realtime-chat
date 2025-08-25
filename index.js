@@ -69,7 +69,7 @@ io.on('connection', (socket) => {
     socket.streamId = streamId;
     socket.isHost = isHost;
 
-    socket.to(`stream_${streamId}`).emit('viewer_joined', {
+    io.to(`stream_${streamId}`).emit('viewer_joined', {
       viewerCount: streamData.viewerCount
     });
   });
