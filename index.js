@@ -43,27 +43,35 @@ io.on('connection', (socket) => {
     console.log(`👥 User ${socket.id} joined group_${groupId}`);
   });
 
-  socket.on("join_stream", ({ streamId }) => {
+  socket.on("join_stream", ({ streamId, isHost = false }) => {
     socket.join(`stream_${streamId}`);
     
     if (!activeStreams.has(streamId)) {
       activeStreams.set(streamId, {
         participants: new Set(),
+        hostSocketId: null,
         viewerCount: 0
       });
     }
 
     const streamData = activeStreams.get(streamId);
-    streamData.participants.add(socket.id);
-    streamData.viewerCount = streamData.participants.size;
+    
+    if (isHost) {
+      streamData.hostSocketId = socket.id;
+      streamData.participants.add(socket.id);
+      console.log(` Host joined stream_${streamId}. Viewers: ${streamData.viewerCount}`);
+    } else {
+      streamData.participants.add(socket.id);
+      streamData.viewerCount = streamData.participants.size - 1;
+      console.log(`👤 Viewer joined stream_${streamId}. Viewers: ${streamData.viewerCount}`);
+    }
 
     socket.streamId = streamId;
+    socket.isHost = isHost;
 
     socket.to(`stream_${streamId}`).emit('viewer_joined', {
       viewerCount: streamData.viewerCount
     });
-
-    console.log(` User joined stream_${streamId}. Viewers: ${streamData.viewerCount}`);
   });
 
   socket.on('send_gift', (data) => {
@@ -82,6 +90,21 @@ io.on('connection', (socket) => {
     }
   });
 
+  socket.on('end_stream', (data) => {
+    const { streamId } = data;
+    if (!streamId) return;
+
+    const streamData = activeStreams.get(streamId);
+    if (streamData) {
+      streamData.hostSocketId = null;
+      streamData.viewerCount = 0;
+      io.to(`stream_${streamId}`).emit('stream_ended');
+      console.log(` Stream ${streamId} ended by host`);
+      
+      activeStreams.delete(streamId);
+    }
+  });
+
   socket.on('leave_stream', (data) => {
     const { streamId } = data;
     if (!streamId) return;
@@ -89,19 +112,29 @@ io.on('connection', (socket) => {
     const streamData = activeStreams.get(streamId);
     if (streamData) {
       streamData.participants.delete(socket.id);
-      streamData.viewerCount = streamData.participants.size;
-
-      if (streamData.participants.size === 0) {
-        activeStreams.delete(streamId);
+      
+      if (socket.isHost) {
+        streamData.hostSocketId = null;
+        streamData.viewerCount = 0;
+        io.to(`stream_${streamId}`).emit('stream_ended');
+        console.log(` Stream ${streamId} ended by host`);
       } else {
+        streamData.viewerCount = Math.max(0, streamData.participants.size - 1);
         socket.to(`stream_${streamId}`).emit('viewer_left', {
           viewerCount: streamData.viewerCount
         });
+        console.log(` Viewer left stream_${streamId}. Viewers: ${streamData.viewerCount}`);
+      }
+
+      if (streamData.participants.size === 0) {
+        activeStreams.delete(streamId);
+        console.log(` Stream ${streamId} cleaned up - no participants left`);
       }
     }
 
     socket.leave(`stream_${streamId}`);
     delete socket.streamId;
+    delete socket.isHost;
   });
 
   socket.on('disconnect', () => {
@@ -109,14 +142,22 @@ io.on('connection', (socket) => {
       const streamData = activeStreams.get(socket.streamId);
       if (streamData) {
         streamData.participants.delete(socket.id);
-        streamData.viewerCount = streamData.participants.size;
-
-        if (streamData.participants.size === 0) {
-          activeStreams.delete(socket.streamId);
+        
+        if (socket.isHost) {
+          streamData.hostSocketId = null;
+          streamData.viewerCount = 0;
+          io.to(`stream_${socket.streamId}`).emit('stream_ended');
+          console.log(`📺 Stream ${socket.streamId} ended - host disconnected`);
         } else {
+          streamData.viewerCount = Math.max(0, streamData.participants.size - 1);
           socket.to(`stream_${socket.streamId}`).emit('viewer_left', {
             viewerCount: streamData.viewerCount
           });
+          console.log(`👤 Viewer disconnected from stream_${socket.streamId}. Viewers: ${streamData.viewerCount}`);
+        }
+        if (streamData.participants.size === 0) {
+          activeStreams.delete(socket.streamId);
+          console.log(` Stream ${socket.streamId} cleaned up - no participants left`);
         }
       }
     }
@@ -127,6 +168,7 @@ io.on('connection', (socket) => {
         break;
       }
     }
+    console.log(`🔴 Socket disconnected: ${socket.id}`);
   });
 });
 
